@@ -1,6 +1,7 @@
 ### IMPORTS ###
 import numpy as np
 import cv2
+import random
 
 ### GETTERS ###
 
@@ -107,3 +108,74 @@ def transformKeypoints(keypoints, rotationMatrix):
         result.append((rotatedPoint[0],rotatedPoint[1]))
 
     return result
+
+# Remove the excess padding from image
+def removePadding(img, startAxis, endAxis):
+    _,_, minX, maxX, minY, maxY = getSAandBB(img)
+    cropped = img[minY:maxY, minX:maxX]
+    newStartX = startAxis[0] - minX
+    newStartY = startAxis[1] - minY
+    newEndX = endAxis[0] - minX
+    newEndY = endAxis[1] - minY
+
+    return cropped, (newStartX,newStartY), (newEndX,newEndY)
+
+#Resizes the image and keypoints according to the selected percent
+def resizeSymmetry(percent, img, startAxis, endAxis):
+    width = int(img.shape[1] * percent / 100)
+    height = int(img.shape[0] * percent / 100)
+
+    newStartX = startAxis[0] * percent / 100
+    newStartY = startAxis[1] * percent / 100
+    newEndX = endAxis[0] * percent / 100
+    newEndY = endAxis[1] * percent / 100
+
+    return cv2.resize(img, (width, height)), (newStartX,newStartY), (newEndX,newEndY)
+
+### MAIN FUNCTION ###
+
+# Creates a random symmetry, returns array with image, its symmetry axis and its label; parameters can be modified.
+def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
+    # Getting the image and label
+    result,label = getImageArray(id,minst)
+    
+    # Initial rotation
+    if initialRotation is None:
+        initialRotation = random.randrange(360)
+    result,_ = rotateDigit(result, initialRotation)
+
+    # Mirroring the image
+    mirrored = cv2.flip(result, 1)
+
+    # Combining initial with mirrored 
+    if overFlow is None:
+        overFlow = bool(random.getrandbits(1))
+    if padding is None:
+        padding = random.randrange(-result.shape[0], result.shape[0])
+    result = addWithPadding(result,mirrored, padding, overFlow=overFlow)
+
+    # Adding padding for rotation
+    result = addRotationPadding(result)
+
+    # Obtaining symmetry axis
+    startAxis, endAxis, _,_,_,_ = getSAandBB(result)
+
+    # Final rotation
+    if finalRotation is None:
+        finalRotation = random.randrange(360)
+    result,rotationMatrix = rotateDigit(result,finalRotation)
+
+    # Rotating symmetry axis
+    rotated = transformKeypoints([startAxis, endAxis], rotationMatrix)
+    startAxis = rotated[0]
+    endAxis = rotated[1]
+
+    # Remove excess pading
+    result, startAxis, endAxis = removePadding(result, startAxis, endAxis)
+
+    # Resizing
+    if resizingPercent is None:
+        resizingPercent = random.randrange(80,300)
+    result, startAxis, endAxis = resizeSymmetry(resizingPercent, result, startAxis, endAxis)
+
+    return result, startAxis, endAxis
