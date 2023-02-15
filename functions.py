@@ -112,7 +112,7 @@ def transformKeypoints(keypoints, rotationMatrix):
 # Remove the excess padding from image
 def removePadding(img, startAxis, endAxis):
     _,_, minX, maxX, minY, maxY = getSAandBB(img)
-    cropped = img[minY:maxY, minX:maxX]
+    cropped = img[minY:maxY+1, minX:maxX+1]
     newStartX = startAxis[0] - minX
     newStartY = startAxis[1] - minY
     newEndX = endAxis[0] - minX
