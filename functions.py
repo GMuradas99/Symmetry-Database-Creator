@@ -2,6 +2,7 @@
 import numpy as np
 import cv2
 import random
+import math
 
 ### GETTERS ###
 
@@ -132,7 +133,93 @@ def resizeSymmetry(percent, img, startAxis, endAxis):
 
     return cv2.resize(img, (width, height)), (newStartX,newStartY), (newEndX,newEndY)
 
-### MAIN FUNCTION ###
+# Adds noise filter to image
+def addNoise(img):
+    for i in range(img.shape[0]):
+        for j in range(img.shape[0]):
+            pixelMask = random.uniform(0,1)
+            img[i][j][0] += int(255 * pixelMask)
+            img[i][j][1] += int(255 * pixelMask)
+            img[i][j][2] += int(255 * pixelMask)
+    
+    return img
+
+# Generates smooth noise
+def smoothNoise(x, y, img):
+    width = img.shape[1]
+    height = img.shape[0]
+
+    # Get decimal part for x and y
+    fractX = x - int(x)
+    fractY = y - int(y)
+
+    # Wrap around
+    x1 = (int(x) + width) % width
+    y1 = (int(y) + height) % height
+
+    # Neighbour values
+    x2 = (x1 + width - 1) % width
+    y2 = (y1 + height -1) % height
+
+    # Smooth noise
+    value = 0.0
+    value += fractX * fractY * img[y1][x1][0]
+    value += (1 - fractX) * fractY * img[y1][x2][0]
+    value += fractX * (1 - fractY) * img[y2][x1][0]
+    value += (1 - fractX) * (1 - fractY) * img[y2][x2][0]
+
+    return value
+
+# Smooth the image to desired factor
+def smoothImage(img,factor):
+    result = np.zeros(img.shape).astype(np.uint8)
+
+    # Applies smooth noise
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            res = int(smoothNoise(i/ factor, j / factor, img))
+            result[i][j][0] = res
+            result[i][j][1] = res
+            result[i][j][2] = res
+
+    return result
+
+# Returns the value for the turbulence pixel
+def turbulence(x, y, size, img):
+    value = 0
+    initialSize = size
+
+    while size >= 1:
+        value += (smoothNoise(x / size, y / size, img) / 256) * size
+        size = size//2
+    
+    return  128 * value / initialSize
+
+# Applies turbulence
+def applyTurbulence(img, initialSize):
+    turb = np.zeros(img.shape).astype(np.uint8)
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            res = int(turbulence(i, j, initialSize, img))
+            turb[i][j][0] = res
+            turb[i][j][1] = res
+            turb[i][j][2] = res
+
+    return turb
+
+# Returns the sin texture
+def sinTexture(shape, factorX, factorY, power):
+    img = np.zeros(shape).astype(np.uint8)
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            val = int(255 * abs(math.sin(math.radians(i*factorX+j*factorY))) ** power)
+            img[i,j][0] = val
+            img[i,j][1] = val
+            img[i,j][2] = val
+    
+    return img
+
+### MAIN FUNCTIONS ###
 
 # Creates a random symmetry, returns array with image, its symmetry axis and its label; parameters can be modified.
 def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
@@ -179,3 +266,31 @@ def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding =
     result, startAxis, endAxis = resizeSymmetry(resizingPercent, result, startAxis, endAxis)
 
     return result, startAxis, endAxis
+
+# Returns random smooth sin texture
+def getSmoothNoiseSin(shape, darkness = None, xPeriod = None, yPeriod = None, turbPower = None, turbSize = None):
+    if darkness is None:
+        darkness = random.uniform(0,0.8)
+    if xPeriod is None:
+        xPeriod	= random.randrange(6)
+    if yPeriod is None:
+        yPeriod	= random.randrange(6)
+    if turbPower is None:
+        turbPower = random.uniform(0,3)
+    if turbSize is None:
+        turbSize = 2**random.randrange(7)
+    
+    noise = np.zeros(shape).astype(np.uint8)
+    noise = addNoise(noise)
+
+    img = np.zeros((224,224,3)).astype(np.uint8)
+
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            xyValue = i * xPeriod + j * yPeriod + (turbPower * turbulence(i,j, turbSize, noise))
+            sineValue = 255 * abs(math.sin(math.radians(xyValue)))**2 * darkness
+            img[i,j][0] = sineValue
+            img[i,j][1] = sineValue
+            img[i,j][2] = sineValue
+
+    return img
