@@ -279,7 +279,6 @@ def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding =
 
     return result, startAxis, endAxis, {'initialRotation':initialRotation, 'overFlow':overFlow, 'padding':padding, 'finalRotation':finalRotation, 'resizingPercent':resizingPercent}
 
-
 # Returns random smooth sin texture
 def getSmoothNoiseSin(shape, darkness = None, xPeriod = None, yPeriod = None, turbPower = None, turbSize = None):
     if darkness is None:
@@ -339,4 +338,47 @@ def getSmoothNoiseWood(shape, offsetX = None, offsetY = None, darkness = None, x
             img[i,j][2] = sineValue
 
     return img, {'Darkness':darkness, 'xPeriod':xPeriod, 'yPeriod':yPeriod, 'turbPower':turbPower, 'turbSize':turbSize, 'offsetX':offsetX, 'offsetY':offsetY}
+
+# Creates a random symmetry, returns array with image, its symmetry axis and its label; parameters can be modified.
+def createAsymmetry(minst, id1 = None, id2 = None,initialRotation2 = None ,initialRotation1 = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
+    # Getting the image and label
+    if id1 is None:
+        id1 = random.randrange(len(minst))
+    if id2 is None:
+        id2 = random.randrange(len(minst))
+    result, _ = getImageArray(id1,minst)
+    otherNumber, _ = getImageArray(id2,minst)
+    
+    # Initial rotation
+    if initialRotation1 is None:
+        initialRotation1 = random.randrange(360)
+    result,_ = rotateDigit(result, initialRotation1)
+    if initialRotation2 is None:
+        initialRotation2 = random.randrange(360)
+    mirrored,_ = rotateDigit(otherNumber, initialRotation2)
+
+    # Combining initial with the secondNumber 
+    if overFlow is None:
+        overFlow = bool(random.getrandbits(1))
+    if padding is None:
+        padding = random.randrange(-result.shape[0], result.shape[0])
+    result = addWithPadding(result,mirrored, padding, overFlow=overFlow)
+
+    # Adding padding for rotation
+    result = addRotationPadding(result)
+
+    # Final rotation
+    if finalRotation is None:
+        finalRotation = random.randrange(360)
+    result,_ = rotateDigit(result,finalRotation)
+
+    # Remove excess pading
+    result, _, _ = removePadding(result, (0,0), (0,0))
+
+    # Resizing
+    if resizingPercent is None:
+        resizingPercent = random.randrange(80,300)
+    result, _, _ = resizeSymmetry(resizingPercent, result, (0,0), (0,0))
+
+    return result
 
