@@ -219,6 +219,18 @@ def sinTexture(shape, factorX, factorY, power):
     
     return img
 
+# Returns the wood texture
+def woodTexture(shape, factorX, factorY, offsetX, offsetY, power):
+    img = np.zeros(shape).astype(np.uint8)
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            val = int(255 * abs(math.cos(math.radians(    math.sqrt(((i+offsetX)*factorX)**2+((j+offsetY)*factorY)**2)     ))) ** power)
+            img[i,j][0] = val
+            img[i,j][1] = val
+            img[i,j][2] = val
+    
+    return img
+
 ### MAIN FUNCTIONS ###
 
 # Creates a random symmetry, returns array with image, its symmetry axis and its label; parameters can be modified.
@@ -265,20 +277,21 @@ def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding =
         resizingPercent = random.randrange(80,300)
     result, startAxis, endAxis = resizeSymmetry(resizingPercent, result, startAxis, endAxis)
 
-    return result, startAxis, endAxis
+    return result, startAxis, endAxis, {'initialRotation':initialRotation, 'overFlow':overFlow, 'padding':padding, 'finalRotation':finalRotation, 'resizingPercent':resizingPercent}
+
 
 # Returns random smooth sin texture
 def getSmoothNoiseSin(shape, darkness = None, xPeriod = None, yPeriod = None, turbPower = None, turbSize = None):
     if darkness is None:
         darkness = random.uniform(0,0.8)
     if xPeriod is None:
-        xPeriod	= random.randrange(6)
+        xPeriod	= random.randrange(10)
     if yPeriod is None:
-        yPeriod	= random.randrange(6)
+        yPeriod	= random.randrange(10)
     if turbPower is None:
         turbPower = random.uniform(0,3)
     if turbSize is None:
-        turbSize = 2**random.randrange(7)
+        turbSize = 2**random.randrange(2,7)
     
     noise = np.zeros(shape).astype(np.uint8)
     noise = addNoise(noise)
@@ -293,4 +306,37 @@ def getSmoothNoiseSin(shape, darkness = None, xPeriod = None, yPeriod = None, tu
             img[i,j][1] = sineValue
             img[i,j][2] = sineValue
 
-    return img
+    return img, {'Darkness':darkness, 'xPeriod':xPeriod, 'yPeriod':yPeriod, 'turbPower':turbPower, 'turbSize':turbSize}
+
+# Returns random smooth sin texture
+def getSmoothNoiseWood(shape, offsetX = None, offsetY = None, darkness = None, xPeriod = None, yPeriod = None, turbPower = None, turbSize = None):
+    if darkness is None:
+        darkness = random.uniform(0,0.8)
+    if xPeriod is None:
+        xPeriod	= random.randrange(10)
+    if yPeriod is None:
+        yPeriod	= random.randrange(10)
+    if turbPower is None:
+        turbPower = random.uniform(0,3)
+    if turbSize is None:
+        turbSize = 2**random.randrange(2,7)
+    if offsetX is None:
+        offsetX = -random.randrange(shape[0])
+    if offsetY is None:
+        offsetY = -random.randrange(shape[0])
+    
+    noise = np.zeros(shape).astype(np.uint8)
+    noise = addNoise(noise)
+
+    img = np.zeros((224,224,3)).astype(np.uint8)
+
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            xyValue = math.sqrt(((i+offsetX)*xPeriod)**2+((j+offsetY)*yPeriod)**2) + (turbPower * turbulence(i,j, turbSize, noise))
+            sineValue = 255 * abs(math.sin(math.radians(xyValue)))**2 * darkness
+            img[i,j][0] = sineValue
+            img[i,j][1] = sineValue
+            img[i,j][2] = sineValue
+
+    return img, {'Darkness':darkness, 'xPeriod':xPeriod, 'yPeriod':yPeriod, 'turbPower':turbPower, 'turbSize':turbSize, 'offsetX':offsetX, 'offsetY':offsetY}
+
