@@ -277,7 +277,7 @@ def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding =
         resizingPercent = random.randrange(80,300)
     result, startAxis, endAxis = resizeSymmetry(resizingPercent, result, startAxis, endAxis)
 
-    return result, startAxis, endAxis, {'initialRotation':initialRotation, 'overFlow':overFlow, 'padding':padding, 'finalRotation':finalRotation, 'resizingPercent':resizingPercent}
+    return result, startAxis, endAxis, {'label':label, 'initialRotation':initialRotation, 'overFlow':overFlow, 'padding':padding, 'finalRotation':finalRotation, 'resizingPercent':resizingPercent}
 
 # Returns random smooth sin texture
 def getSmoothNoiseSin(shape, darkness = None, xPeriod = None, yPeriod = None, turbPower = None, turbSize = None):
