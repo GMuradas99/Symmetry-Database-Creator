@@ -1,8 +1,9 @@
 ### IMPORTS ###
-import numpy as np
 import cv2
-import random
 import math
+import rpack
+import random
+import numpy as np
 
 ### GETTERS ###
 
@@ -35,6 +36,61 @@ def getSAandBB(img):
     endAxis = (minX + (maxX-minX)//2, maxY)
     
     return startAxis,endAxis,minX,maxX,minY,maxY
+
+### DISPLAY FUNCTIONS
+
+# Draws rectangle on the image
+def displayBoundingBox(img, points):
+    cv2.line(img, (int(points[0][0]),int(points[0][1])), (int(points[1][0]),int(points[1][1])), [0,255,0], 1)
+    cv2.line(img, (int(points[1][0]),int(points[1][1])), (int(points[2][0]),int(points[2][1])), [0,255,0], 1)
+    cv2.line(img, (int(points[2][0]),int(points[2][1])), (int(points[3][0]),int(points[3][1])), [0,255,0], 1)
+    cv2.line(img, (int(points[3][0]),int(points[3][1])), (int(points[0][0]),int(points[0][1])), [0,255,0], 1)
+
+# Draws symmetry axis and bounding box
+def drawSAandBB(img, startAxis, endAxis, center, width, height, rotation):
+    # Symmetry axis
+    cv2.line(img, (int(startAxis[0]) , int(startAxis[1])), (int(endAxis[0]) , int(endAxis[1])), [255,0,0], 1)
+
+    # Points for bounding box
+    pts = [(center[0]-width/2 , center[1]-height/2), (center[0]+width/2 , center[1]-height/2), 
+           (center[0]+width/2 , center[1]+height/2), (center[0]-width/2 , center[1]+height/2)]
+    
+    # Rotating
+    rotationMatrix = cv2.getRotationMatrix2D(center, rotation, 1)
+    pts = transformKeypoints(pts, rotationMatrix)
+
+    # Drawing bounding box
+    displayBoundingBox(img, pts)
+
+# Returns the starting and ending points for the symmetry axis as well as the center, width and height for the bounding box
+def getSAandBB(img):
+    minX = len(img[0])*10
+    minY = -1
+    maxX = -1
+    maxY = -1
+    for i in range(len(img)):
+        for j in range(len(img[0])):
+            if minY == -1 and (img[i][j][0] != 0 or img[i][j][1] != 0 or img[i][j][2] != 0):
+                minY = i
+            if img[i][j][0] != 0 or img[i][j][1] != 0 or img[i][j][2] != 0:
+                maxY = i-1
+                if j-1 > maxX:
+                    maxX = j
+                if j < minX:
+                    minX = j
+    maxX += 1
+    maxY += 1
+
+    # Axis of symmetry
+    startAxis = (minX + (maxX-minX)/2, minY)            
+    endAxis = (minX + (maxX-minX)/2, maxY)
+
+    # Center, width and height of bounding box
+    center = ((maxX-minX)/2+minX, (maxY-minY)/2+minY)
+    height = (maxY-minY)
+    width = (maxX-minX)
+    
+    return startAxis,endAxis,center,width,height
 
 ### OPERATIONS ###
 
@@ -107,22 +163,28 @@ def transformKeypoints(keypoints, rotationMatrix):
     for keypoint in keypoints:
         rotatedPoint = rotationMatrix.dot(np.array(keypoint + (1,)))
         result.append((rotatedPoint[0],rotatedPoint[1]))
-
+        
     return result
 
 # Remove the excess padding from image
-def removePadding(img, startAxis, endAxis):
-    _,_, minX, maxX, minY, maxY = getSAandBB(img)
-    cropped = img[minY:maxY+1, minX:maxX+1]
+def removePadding(img, startAxis, endAxis, cent):
+    _,_, center, width, height = getSAandBB(img)
+    minX = int(center[0] - width/2)
+    minY = int(center[1] - height/2)
+    maxX = int(center[0] + width/2)
+    maxY = int(center[1] + height/2)
+    cropped = img[minY:maxY, minX:maxX]
     newStartX = startAxis[0] - minX
     newStartY = startAxis[1] - minY
     newEndX = endAxis[0] - minX
     newEndY = endAxis[1] - minY
+    newCentX = cent[0] - minX 
+    newCentY = cent[1] - minY
 
-    return cropped, (newStartX,newStartY), (newEndX,newEndY)
+    return cropped, (newStartX,newStartY), (newEndX,newEndY), (newCentX, newCentY)
 
 #Resizes the image and keypoints according to the selected percent
-def resizeSymmetry(percent, img, startAxis, endAxis):
+def resizeSymmetry(percent, img, startAxis, endAxis, center, inWidth, inHeight):
     width = int(img.shape[1] * percent / 100)
     height = int(img.shape[0] * percent / 100)
 
@@ -130,8 +192,12 @@ def resizeSymmetry(percent, img, startAxis, endAxis):
     newStartY = startAxis[1] * percent / 100
     newEndX = endAxis[0] * percent / 100
     newEndY = endAxis[1] * percent / 100
+    newCenterX = center[0] * percent / 100
+    newCenterY = center[1] * percent / 100
+    newWidth = inWidth * percent / 100
+    newHeight = inHeight * percent / 100
 
-    return cv2.resize(img, (width, height)), (newStartX,newStartY), (newEndX,newEndY)
+    return cv2.resize(img, (width, height)), (newStartX,newStartY), (newEndX,newEndY), (newCenterX, newCenterY), newWidth, newHeight
 
 # Adds noise filter to image
 def addNoise(img):
@@ -231,6 +297,46 @@ def woodTexture(shape, factorX, factorY, offsetX, offsetY, power):
     
     return img
 
+# Inserts into image by replacing the pixels with the desiredposition
+def insert(insert, img, position):
+    img[position[0]:position[0]+insert.shape[0], position[1]:position[1]+insert.shape[1]] = insert
+
+# Returns image of selected size with randomly placed digits and a symmetry as well as the data for the symmetry
+def getRandomDigitsWithSymmetry(id, mnist, size, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
+    # Elements for while loop
+    possible = True
+    squareSizes = []
+    elements = []
+
+    # Adding symmetry and placing it in the first place of the list
+    symmetry,symDictionary = createSymmetry(id,mnist,initialRotation,overFlow,padding,finalRotation,resizingPercent)
+    squareSizes.append(symmetry.shape[:2])
+    elements.append(symmetry)
+    positions = []
+
+    # Attemting to add elements until impossible
+    while possible:
+        square = createAsymmetry(mnist)
+        try: 
+            positions = rpack.pack(squareSizes+[square.shape[:2]],max_width=size[1],max_height=size[0])
+            squareSizes.append(square.shape[:2])
+            elements.append(square)
+        except rpack.PackingImpossibleError:
+            possible = False
+
+    # Final result
+    background = np.zeros((size[1],size[0],3)).astype(np.uint8)
+
+    # Inserting the digits on their specific position
+    for idx,digit in enumerate(elements):
+        insert(digit,background,positions[idx])
+
+    symDictionary['startAxis'] = (symDictionary['startAxis'][0] + positions[0][1], symDictionary['startAxis'][1] + positions[0][0])
+    symDictionary['endAxis'] = (symDictionary['endAxis'][0] + positions[0][1], symDictionary['endAxis'][1] + positions[0][0])
+    symDictionary['center'] = (symDictionary['center'][0] + positions[0][1], symDictionary['center'][1] + positions[0][0])
+    
+    return background, symDictionary
+
 ### MAIN FUNCTIONS ###
 
 # Creates a random symmetry, returns array with image, its symmetry axis and its label; parameters can be modified.
@@ -257,7 +363,7 @@ def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding =
     result = addRotationPadding(result)
 
     # Obtaining symmetry axis
-    startAxis, endAxis, _,_,_,_ = getSAandBB(result)
+    startAxis, endAxis, center, width, height = getSAandBB(result)
 
     # Final rotation
     if finalRotation is None:
@@ -265,19 +371,20 @@ def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding =
     result,rotationMatrix = rotateDigit(result,finalRotation)
 
     # Rotating symmetry axis
-    rotated = transformKeypoints([startAxis, endAxis], rotationMatrix)
+    rotated = transformKeypoints([startAxis, endAxis, center], rotationMatrix)
     startAxis = rotated[0]
     endAxis = rotated[1]
+    center = rotated[2]
 
     # Remove excess pading
-    result, startAxis, endAxis = removePadding(result, startAxis, endAxis)
+    result, startAxis, endAxis, center = removePadding(result, startAxis, endAxis, center)
 
     # Resizing
     if resizingPercent is None:
         resizingPercent = random.randrange(80,300)
-    result, startAxis, endAxis = resizeSymmetry(resizingPercent, result, startAxis, endAxis)
+    result, startAxis, endAxis, center, width, height = resizeSymmetry(resizingPercent, result, startAxis, endAxis, center, width, height)
 
-    return result, startAxis, endAxis, {'label':label, 'initialRotation':initialRotation, 'overFlow':overFlow, 'padding':padding, 'finalRotation':finalRotation, 'resizingPercent':resizingPercent}
+    return result, {'startAxis':startAxis, 'endAxis': endAxis, 'center':center, 'width':width, 'height':height, 'label':label, 'initialRotation':initialRotation, 'overFlow':overFlow, 'padding':padding, 'finalRotation':finalRotation, 'resizingPercent':resizingPercent}
 
 # Returns random smooth sin texture
 def getSmoothNoiseSin(shape, darkness = None, xPeriod = None, yPeriod = None, turbPower = None, turbSize = None):
@@ -373,12 +480,32 @@ def createAsymmetry(minst, id1 = None, id2 = None,initialRotation2 = None ,initi
     result,_ = rotateDigit(result,finalRotation)
 
     # Remove excess pading
-    result, _, _ = removePadding(result, (0,0), (0,0))
+    result, _, _, _ = removePadding(result, (0,0), (0,0), (0,0))
 
     # Resizing
     if resizingPercent is None:
         resizingPercent = random.randrange(80,300)
-    result, _, _ = resizeSymmetry(resizingPercent, result, (0,0), (0,0))
+    result, _ ,_, _, _, _ = resizeSymmetry(resizingPercent, result, (0,0), (0,0), (0,0), 0, 0)
 
     return result
 
+# Returns an image with a local symmetry its dictionary and the backgrounds dictionary
+def getLocalSymmetry(shape, mnist, idx = None, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None,
+                     backgroundType = None, darknessBackground = None, xPeriod = None, yPeriod = None, turbPower = None, turbSize = None,
+                     offsetX = None, offsetY = None):
+    # Digits 
+    if idx is None:
+        idx = random.randrange(len(mnist))
+    digits, dictSym = getRandomDigitsWithSymmetry(idx, mnist, shape, initialRotation, overFlow, padding, finalRotation, resizingPercent)
+
+    # Background
+    if backgroundType is None:
+        backgroundType = random.randrange(2)
+    if backgroundType == 0:
+        background, dictBack = getSmoothNoiseSin(shape, darknessBackground, xPeriod, yPeriod, turbPower, turbSize)
+    else:
+        background, dictBack = getSmoothNoiseWood(shape, offsetX, offsetY, darknessBackground, xPeriod, yPeriod, turbPower, turbSize)
+
+    img = addNoOverflow(digits, background)
+
+    return img, dictSym, dictBack
