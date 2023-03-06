@@ -503,9 +503,21 @@ def getLocalSymmetry(shape, mnist, idx = None, initialRotation = None, overFlow 
         backgroundType = random.randrange(2)
     if backgroundType == 0:
         background, dictBack = getSmoothNoiseSin(shape, darknessBackground, xPeriod, yPeriod, turbPower, turbSize)
+        dictBack['offsetX'] = 0
+        dictBack['offsetY'] = 0
     else:
         background, dictBack = getSmoothNoiseWood(shape, offsetX, offsetY, darknessBackground, xPeriod, yPeriod, turbPower, turbSize)
 
+    # Adding digits and background
     img = addNoOverflow(digits, background)
+
+    # Modifying dictionaries
+    dictBack['backgroundType'] = backgroundType
+    dictSym['startAxisX'] = dictSym['startAxis'][0]
+    dictSym['startAxisY'] = dictSym['startAxis'][1]
+    dictSym['endAxisX'] = dictSym['endAxis'][0]
+    dictSym['endAxisY'] = dictSym['endAxis'][1]
+    dictSym['centerX'] = dictSym['center'][0]
+    dictSym['centerY'] = dictSym['center'][1]
 
     return img, dictSym, dictBack
