@@ -62,6 +62,12 @@ def drawSAandBB(img, startAxis, endAxis, center, width, height, rotation):
     # Drawing bounding box
     displayBoundingBox(img, pts)
 
+# Displays all bounding boxes and symmetry axises
+def drawAllSAandBB(img, symDictionaries):
+    for dic in symDictionaries:
+        drawSAandBB(img, dic['startAxis'], dic['endAxis'], dic['center'], dic['width'], dic['height'], dic['finalRotation'])
+    return img
+
 # Returns the starting and ending points for the symmetry axis as well as the center, width and height for the bounding box
 def getSAandBB(img):
     minX = len(img[0])*10
@@ -301,19 +307,30 @@ def woodTexture(shape, factorX, factorY, offsetX, offsetY, power):
 def insert(insert, img, position):
     img[position[0]:position[0]+insert.shape[0], position[1]:position[1]+insert.shape[1]] = insert
 
-# Returns image of selected size with randomly placed digits and a symmetry as well as the data for the symmetry
-def getRandomDigitsWithSymmetry(id, mnist, size, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
+# Returns image of selected size with randomly placed digits and a symmetries as well as the data for the symmetries
+def getRandomDigitsWithSymmetry(id, mnist, size, numSymmetries = None, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
     # Elements for while loop
     possible = True
     squareSizes = []
     elements = []
+    # symmetries = []
+    symDictionaries = []
 
-    # Adding symmetry and placing it in the first place of the list
+    if numSymmetries is None:
+        numSymmetries = random.randrange(1,5)
+
+    # Adding symmetries and placing it in the first place of the list
     symmetry,symDictionary = createSymmetry(id,mnist,initialRotation,overFlow,padding,finalRotation,resizingPercent)
     squareSizes.append(symmetry.shape[:2])
     elements.append(symmetry)
-    positions = []
+    symDictionaries.append(symDictionary)
+    for _ in range(numSymmetries - 1):
+        symmetry,symDictionary = createSymmetry(random.randrange(len(mnist)),mnist,initialRotation,overFlow,padding,finalRotation,resizingPercent)
+        squareSizes.append(symmetry.shape[:2])
+        elements.append(symmetry)
+        symDictionaries.append(symDictionary)
 
+    positions = []
     # Attemting to add elements until impossible
     while possible:
         square = createAsymmetry(mnist)
@@ -331,11 +348,12 @@ def getRandomDigitsWithSymmetry(id, mnist, size, initialRotation = None, overFlo
     for idx,digit in enumerate(elements):
         insert(digit,background,positions[idx])
 
-    symDictionary['startAxis'] = (symDictionary['startAxis'][0] + positions[0][1], symDictionary['startAxis'][1] + positions[0][0])
-    symDictionary['endAxis'] = (symDictionary['endAxis'][0] + positions[0][1], symDictionary['endAxis'][1] + positions[0][0])
-    symDictionary['center'] = (symDictionary['center'][0] + positions[0][1], symDictionary['center'][1] + positions[0][0])
+    for i in range(numSymmetries):
+        symDictionaries[i]['startAxis'] = (symDictionaries[i]['startAxis'][0] + positions[i][1], symDictionaries[i]['startAxis'][1] + positions[i][0])
+        symDictionaries[i]['endAxis'] = (symDictionaries[i]['endAxis'][0] + positions[i][1], symDictionaries[i]['endAxis'][1] + positions[i][0])
+        symDictionaries[i]['center'] = (symDictionaries[i]['center'][0] + positions[i][1], symDictionaries[i]['center'][1] + positions[i][0])
     
-    return background, symDictionary
+    return background, symDictionaries
 
 ### MAIN FUNCTIONS ###
 
@@ -490,13 +508,13 @@ def createAsymmetry(minst, id1 = None, id2 = None,initialRotation2 = None ,initi
     return result
 
 # Returns an image with a local symmetry its dictionary and the backgrounds dictionary
-def getLocalSymmetry(shape, mnist, idx = None, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None,
-                     backgroundType = None, darknessBackground = None, xPeriod = None, yPeriod = None, turbPower = None, turbSize = None,
+def getLocalSymmetry(shape, mnist, numOfSymmetries = None, idx = None, initialRotation = None, overFlow = None, padding = None, finalRotation = None, 
+                     resizingPercent = None, backgroundType = None, darknessBackground = None, xPeriod = None, yPeriod = None, turbPower = None, turbSize = None,
                      offsetX = None, offsetY = None):
     # Digits 
     if idx is None:
         idx = random.randrange(len(mnist))
-    digits, dictSym = getRandomDigitsWithSymmetry(idx, mnist, shape, initialRotation, overFlow, padding, finalRotation, resizingPercent)
+    digits, dictSymmetries = getRandomDigitsWithSymmetry(idx, mnist, shape, numOfSymmetries, initialRotation, overFlow, padding, finalRotation, resizingPercent)
 
     # Background
     if backgroundType is None:
@@ -511,13 +529,14 @@ def getLocalSymmetry(shape, mnist, idx = None, initialRotation = None, overFlow 
     # Adding digits and background
     img = addNoOverflow(digits, background)
 
-    # Modifying dictionaries
+    # Modifying dictionaries        
     dictBack['backgroundType'] = backgroundType
-    dictSym['startAxisX'] = dictSym['startAxis'][0]
-    dictSym['startAxisY'] = dictSym['startAxis'][1]
-    dictSym['endAxisX'] = dictSym['endAxis'][0]
-    dictSym['endAxisY'] = dictSym['endAxis'][1]
-    dictSym['centerX'] = dictSym['center'][0]
-    dictSym['centerY'] = dictSym['center'][1]
+    for dictSym in dictSymmetries:
+        dictSym['startAxisX'] = dictSym['startAxis'][0]
+        dictSym['startAxisY'] = dictSym['startAxis'][1]
+        dictSym['endAxisX'] = dictSym['endAxis'][0]
+        dictSym['endAxisY'] = dictSym['endAxis'][1]
+        dictSym['centerX'] = dictSym['center'][0]
+        dictSym['centerY'] = dictSym['center'][1]
 
-    return img, dictSym, dictBack
+    return img, dictSymmetries, dictBack
