@@ -1,9 +1,12 @@
 ### IMPORTS ###
 import cv2
+import ast
 import math
 import rpack
 import random
 import numpy as np
+
+from os.path import join
 
 ### GETTERS ###
 
@@ -354,6 +357,26 @@ def getRandomDigitsWithSymmetry(id, mnist, size, numSymmetries = None, initialRo
         symDictionaries[i]['center'] = (symDictionaries[i]['center'][0] + positions[i][1], symDictionaries[i]['center'][1] + positions[i][0])
     
     return background, symDictionaries
+
+# Draws all symmetries in the row on the img
+def drawRow(img, row):
+    # Transforming list of dictionaries drom str to list
+    symmetries = ast.literal_eval(row['symmetries'])
+    # Looping through all symmetries in the image
+    for symm in symmetries:
+        drawSAandBB(img, symm['startAxis'], symm['endAxis'], symm['center'], symm['width'], symm['height'], symm['finalRotation'])
+    return img
+
+# Returns a mask of the selected row
+def getMask(row, path, thickness = 2):
+    img = cv2.imread(join(path, row['fileName']))
+    mask = np.zeros((img.shape[:2]), np.uint8)
+    # Painting axis on mask
+    symmetries = ast.literal_eval(row['symmetries'])
+    # Looping through all symmetries in the image
+    for symm in symmetries:
+        cv2.line(mask, (int(symm['startAxisX']),int(symm['startAxisY'])), (int(symm['endAxisX']),int(symm['endAxisY'])), 255, thickness)
+    return mask
 
 ### MAIN FUNCTIONS ###
 

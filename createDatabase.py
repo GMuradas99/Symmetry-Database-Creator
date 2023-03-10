@@ -17,6 +17,9 @@ if not os.path.isdir(FOLDER_PATH):
 # Check if folder for images exist
 if not os.path.isdir(os.path.join(FOLDER_PATH, 'images')):
     os.mkdir(os.path.join(FOLDER_PATH, 'images'))
+# Check if folder for labels exist
+if not os.path.isdir(os.path.join(FOLDER_PATH, 'labels')):
+    os.mkdir(os.path.join(FOLDER_PATH, 'labels'))
 # Check if labels exist
 if not os.path.isfile(os.path.join(FOLDER_PATH, 'labels.csv')):
     temp = pd.DataFrame(columns=COLUMNS)
@@ -40,9 +43,6 @@ for i in tqdm(range(start,len(MNIST))):
     img, dictSym, dictBack = getLocalSymmetry(SHAPE, MNIST, idx=i)
     # Removing and modifying unnecesary data
     for dict in dictSym:
-        del dict['startAxis']
-        del dict['endAxis']
-        del dict['center']
         dict['overFlow'] = int(dict['overFlow'] == True)
     # Adding data
     dictBack['fileName'] = fileName
