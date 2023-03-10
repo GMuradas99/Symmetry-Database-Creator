@@ -6,7 +6,7 @@ from tqdm import tqdm
 from functions import getLocalSymmetry
 
 FOLDER_PATH = 'symmetry_database'
-COLUMNS = ['fileName','numSymmetries','symmetries','Darkness','xPeriod','yPeriod','turbSize','offsetX','offsetY','backgroundType']
+COLUMNS = ['fileName','numSymmetries','numDecoys','symmetries','Darkness','xPeriod','yPeriod','turbSize','offsetX','offsetY','backgroundType']
 SHAPE = (224,224,3)
 MNIST = pd.read_csv('MNIST/mnist_test.csv')
 MNIST.index.name = 'index'

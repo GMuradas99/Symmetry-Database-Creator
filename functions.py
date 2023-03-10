@@ -356,7 +356,7 @@ def getRandomDigitsWithSymmetry(id, mnist, size, numSymmetries = None, initialRo
         symDictionaries[i]['endAxis'] = (symDictionaries[i]['endAxis'][0] + positions[i][1], symDictionaries[i]['endAxis'][1] + positions[i][0])
         symDictionaries[i]['center'] = (symDictionaries[i]['center'][0] + positions[i][1], symDictionaries[i]['center'][1] + positions[i][0])
     
-    return background, symDictionaries
+    return background, symDictionaries, len(positions)-len(symDictionaries)
 
 # Draws all symmetries in the row on the img
 def drawRow(img, row):
@@ -537,7 +537,14 @@ def getLocalSymmetry(shape, mnist, numOfSymmetries = None, idx = None, initialRo
     # Digits 
     if idx is None:
         idx = random.randrange(len(mnist))
-    digits, dictSymmetries = getRandomDigitsWithSymmetry(idx, mnist, shape, numOfSymmetries, initialRotation, overFlow, padding, finalRotation, resizingPercent)
+    # Looping until real combination is found
+    found = False
+    while not found:
+        try:
+            digits, dictSymmetries, numDecoys = getRandomDigitsWithSymmetry(idx, mnist, shape, numOfSymmetries, initialRotation, overFlow, padding, finalRotation, resizingPercent)
+            found = True
+        except:
+            found = False
 
     # Background
     if backgroundType is None:
@@ -554,6 +561,7 @@ def getLocalSymmetry(shape, mnist, numOfSymmetries = None, idx = None, initialRo
 
     # Modifying dictionaries        
     dictBack['backgroundType'] = backgroundType
+    dictBack['numDecoys'] = numDecoys
     for dictSym in dictSymmetries:
         dictSym['startAxisX'] = dictSym['startAxis'][0]
         dictSym['startAxisY'] = dictSym['startAxis'][1]
