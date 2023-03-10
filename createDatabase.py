@@ -5,10 +5,8 @@ import pandas as pd
 from tqdm import tqdm
 from functions import getLocalSymmetry
 
-# CONSTANTS
 FOLDER_PATH = 'symmetry_database'
-COLUMNS = ['fileName','startAxisX','startAxisY','endAxisX','endAxisY','centerX','centerY','width','height','label','initialRotation','overFlow','padding',
-           'finalRotation','resizingPercent','Darkness','xPeriod','yPeriod','turbSize','offsetX','offsetY','backgroundType']
+COLUMNS = ['fileName','numSymmetries','symmetries','Darkness','xPeriod','yPeriod','turbSize','offsetX','offsetY','backgroundType']
 SHAPE = (224,224,3)
 MNIST = pd.read_csv('MNIST/mnist_test.csv')
 MNIST.index.name = 'index'
@@ -31,23 +29,29 @@ prevData = pd.read_csv(os.path.join(FOLDER_PATH,'labels.csv'),index_col='index')
 # Checking starting point for loop
 start = len(prevData)
 
+# Checking starting point for loop
+start = len(prevData)
+
 # Loop
 for i in tqdm(range(start,len(MNIST))):
     # File name
     fileName = f'{i}.png'
     # Generating local symmetry
     img, dictSym, dictBack = getLocalSymmetry(SHAPE, MNIST, idx=i)
-    # Removing unnecesary data
-    del dictSym['startAxis']
-    del dictSym['endAxis']
-    del dictSym['center']
-    # Merging dictionaries
-    finalDict = dictSym | dictBack
+    # Removing and modifying unnecesary data
+    for dict in dictSym:
+        del dict['startAxis']
+        del dict['endAxis']
+        del dict['center']
+        dict['overFlow'] = int(dict['overFlow'] == True)
     # Adding data
-    finalDict['fileName'] = fileName
-    finalDict['overFlow'] = int(finalDict['overFlow'] == True)
+    dictBack['fileName'] = fileName
+    # Adding all simetries
+    dictBack['numSymmetries'] = len(dictSym)
+    dictBack['symmetries'] = str(dictSym)
     # Appending to df and saving
-    newRowDf = pd.DataFrame(finalDict, index=[0])
+    newRowDf = pd.DataFrame(dictBack, index=[0])
+    
     prevData = pd.concat([prevData, newRowDf], ignore_index=True)
     prevData.index.name = 'index'
     prevData.to_csv(os.path.join(FOLDER_PATH, 'labels.csv'))
