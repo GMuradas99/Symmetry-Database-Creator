@@ -108,7 +108,7 @@ def drawSAandBB(img, startAxis, endAxis, center, width, height, rotation):
 # Displays all bounding boxes and symmetry axises
 def drawAllSAandBB(img, symDictionaries):
     for dic in symDictionaries:
-        drawSAandBB(img, dic['startAxis'], dic['endAxis'], dic['center'], dic['width'], dic['height'], dic['finalRotation'])
+        drawMultipleSAandBB(img, dic['symAxes'], dic['center'], dic['width'], dic['height'], dic['finalRotation'])
     return img
 
 # Draws multiple symmetry axis and bounding box
@@ -377,7 +377,8 @@ def insert(insert, img, position):
     img[position[0]:position[0]+insert.shape[0], position[1]:position[1]+insert.shape[1]] = insert
 
 # Returns image of selected size with randomly placed digits and a symmetries as well as the data for the symmetries
-def getRandomDigitsWithSymmetry(id, mnist, size, numSymmetries = None, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
+def getRandomDigitsWithSymmetry(id, mnist, size, types = ['simple', 'cross'], weights = [0.5, 0.5], numSymmetries = None, initialRotation = None, 
+                                overFlow = None, padding1 = None, padding2 = None, finalRotation = None, resizingPercent = None):
     # Elements for while loop
     possible = True
     squareSizes = []
@@ -388,13 +389,13 @@ def getRandomDigitsWithSymmetry(id, mnist, size, numSymmetries = None, initialRo
     if numSymmetries is None:
         numSymmetries = random.randrange(1,5)
 
-    # Adding symmetries and placing it in the first place of the list
-    symmetry,symDictionary = createSymmetry(id,mnist,initialRotation,overFlow,padding,finalRotation,resizingPercent)
+    # Adding symmetries and placing them in the first place of the list
+    symmetry,symDictionary = createAnySymmetry(id, mnist, types, weights, initialRotation, overFlow, padding1, padding2, finalRotation, resizingPercent)
     squareSizes.append(symmetry.shape[:2])
     elements.append(symmetry)
     symDictionaries.append(symDictionary)
     for _ in range(numSymmetries - 1):
-        symmetry,symDictionary = createSymmetry(random.randrange(len(mnist)),mnist,initialRotation,overFlow,padding,finalRotation,resizingPercent)
+        symmetry,symDictionary = createAnySymmetry(random.randrange(len(mnist)), mnist, types, weights, initialRotation, overFlow, padding1, padding2, finalRotation, resizingPercent)
         squareSizes.append(symmetry.shape[:2])
         elements.append(symmetry)
         symDictionaries.append(symDictionary)
@@ -418,8 +419,13 @@ def getRandomDigitsWithSymmetry(id, mnist, size, numSymmetries = None, initialRo
         insert(digit,background,positions[idx])
 
     for i in range(numSymmetries):
-        symDictionaries[i]['startAxis'] = (symDictionaries[i]['startAxis'][0] + positions[i][1], symDictionaries[i]['startAxis'][1] + positions[i][0])
-        symDictionaries[i]['endAxis'] = (symDictionaries[i]['endAxis'][0] + positions[i][1], symDictionaries[i]['endAxis'][1] + positions[i][0])
+        adjusted = []
+        for [startAxis, endAxis] in symDictionaries[i]['symAxes']:
+            adjusted.append([
+                [startAxis[0] + positions[i][1], startAxis[1] + positions[i][0]],
+                [endAxis[0] + positions[i][1], endAxis[1] + positions[i][0]]
+            ])
+        symDictionaries[i]['symAxes'] = adjusted
         symDictionaries[i]['center'] = (symDictionaries[i]['center'][0] + positions[i][1], symDictionaries[i]['center'][1] + positions[i][0])
     
     return background, symDictionaries, len(positions)-len(symDictionaries)
@@ -430,7 +436,7 @@ def drawRow(img, row):
     symmetries = ast.literal_eval(row['symmetries'])
     # Looping through all symmetries in the image
     for symm in symmetries:
-        drawSAandBB(img, symm['startAxis'], symm['endAxis'], symm['center'], symm['width'], symm['height'], symm['finalRotation'])
+        drawMultipleSAandBB(img, symm['symAxes'], symm['center'], symm['width'], symm['height'], symm['finalRotation'])
     return img
 
 # Returns a mask of the selected row
@@ -441,15 +447,32 @@ def getMask(row, path, thickness = 2):
     symmetries = ast.literal_eval(row['symmetries'])
     # Looping through all symmetries in the image
     for symm in symmetries:
-        cv2.line(mask, (int(symm['startAxisX']),int(symm['startAxisY'])), (int(symm['endAxisX']),int(symm['endAxisY'])), 255, thickness)
+        for [startAxis,endAxis] in symm['symAxes']:
+            cv2.line(mask, (int(startAxis[0]),int(startAxis[1])), (int(endAxis[0]),int(endAxis[1])), 255, thickness)
     return mask
 
 ### MAIN FUNCTIONS ###
 
+# Creates a symmetry with the selected weight bias
+def createAnySymmetry(id, mnist, types , weights, initialRotation = None, overFlow = None, padding1 = None, padding2 = None, 
+                      finalRotation = None, resizingPercent = None):
+    choice = random.choices(types, weights=weights, k=1)[0]
+
+    if choice == 'simple':
+        symmetry,symDictionary = createSymmetry(id,mnist,initialRotation,overFlow,padding1,finalRotation,resizingPercent)
+        symAxes = [[[symDictionary['startAxis'][0], symDictionary['startAxis'][1]] , [symDictionary['endAxis'][0], symDictionary['endAxis'][1]]]]
+        del symDictionary['startAxis']
+        del symDictionary['endAxis']
+        symDictionary['symAxes'] = symAxes
+    if choice == 'cross':
+        symmetry, symDictionary = createCrossSymmetry(id, mnist, initialRotation, overFlow, padding1, padding2, finalRotation, resizingPercent)
+
+    return symmetry, symDictionary
+
 # Creates a random symmetry, returns array with image, its symmetry axis and its label; parameters can be modified.
-def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
+def createSymmetry(id, mnist, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
     # Getting the image and label
-    result,label = getImageArray(id,minst)
+    result,label = getImageArray(id,mnist)
     
     # Initial rotation
     if initialRotation is None:
@@ -493,9 +516,9 @@ def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding =
 
     return result, {'startAxis':startAxis, 'endAxis': endAxis, 'center':center, 'width':width, 'height':height, 'label':label, 'initialRotation':initialRotation, 'overFlow':overFlow, 'padding':padding, 'finalRotation':finalRotation, 'resizingPercent':resizingPercent}
 
-def createCrossSymmetry(id,minst,initialRotation = None, overFlow = None, padding1 = None, padding2 = None, finalRotation = None, 
+def createCrossSymmetry(id, mnist, initialRotation = None, overFlow = None, padding1 = None, padding2 = None, finalRotation = None, 
                         resizingPercent = None):
-    result,label = getImageArray(id,minst)
+    result,label = getImageArray(id,mnist)
 
     # Initial rotation
     if initialRotation is None:
@@ -615,14 +638,14 @@ def getSmoothNoiseWood(shape, offsetX = None, offsetY = None, darkness = None, x
     return img, {'Darkness':darkness, 'xPeriod':xPeriod, 'yPeriod':yPeriod, 'turbPower':turbPower, 'turbSize':turbSize, 'offsetX':offsetX, 'offsetY':offsetY}
 
 # Creates a random symmetry, returns array with image, its symmetry axis and its label; parameters can be modified.
-def createAsymmetry(minst, id1 = None, id2 = None,initialRotation2 = None ,initialRotation1 = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
+def createAsymmetry(mnist, id1 = None, id2 = None,initialRotation2 = None ,initialRotation1 = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
     # Getting the image and label
     if id1 is None:
-        id1 = random.randrange(len(minst))
+        id1 = random.randrange(len(mnist))
     if id2 is None:
-        id2 = random.randrange(len(minst))
-    result, _ = getImageArray(id1,minst)
-    otherNumber, _ = getImageArray(id2,minst)
+        id2 = random.randrange(len(mnist))
+    result, _ = getImageArray(id1,mnist)
+    otherNumber, _ = getImageArray(id2,mnist)
     
     # Initial rotation
     if initialRotation1 is None:
@@ -658,9 +681,9 @@ def createAsymmetry(minst, id1 = None, id2 = None,initialRotation2 = None ,initi
     return result
 
 # Returns an image with a local symmetry its dictionary and the backgrounds dictionary
-def getLocalSymmetry(shape, mnist, numOfSymmetries = None, idx = None, initialRotation = None, overFlow = None, padding = None, finalRotation = None, 
-                     resizingPercent = None, backgroundType = None, darknessBackground = None, xPeriod = None, yPeriod = None, turbPower = None, turbSize = None,
-                     offsetX = None, offsetY = None):
+def getLocalSymmetry(shape, mnist, numOfSymmetries = None, types = ['simple', 'cross'], weights = [0.5, 0.5], idx = None, initialRotation = None, overFlow = None, padding1 = None,
+                     padding2 = None, finalRotation = None, resizingPercent = None, backgroundType = None, darknessBackground = None, xPeriod = None, yPeriod = None, turbPower = None, 
+                     turbSize = None, offsetX = None, offsetY = None):
     # Digits 
     if idx is None:
         idx = random.randrange(len(mnist))
@@ -668,7 +691,8 @@ def getLocalSymmetry(shape, mnist, numOfSymmetries = None, idx = None, initialRo
     found = False
     while not found:
         try:
-            digits, dictSymmetries, numDecoys = getRandomDigitsWithSymmetry(idx, mnist, shape, numOfSymmetries, initialRotation, overFlow, padding, finalRotation, resizingPercent)
+            digits, dictSymmetries, numDecoys = getRandomDigitsWithSymmetry(idx, mnist, shape, types, weights, numOfSymmetries, initialRotation, 
+                                                                            overFlow , padding1, padding2 , finalRotation, resizingPercent)
             found = True
         except:
             found = False
@@ -690,10 +714,6 @@ def getLocalSymmetry(shape, mnist, numOfSymmetries = None, idx = None, initialRo
     dictBack['backgroundType'] = backgroundType
     dictBack['numDecoys'] = numDecoys
     for dictSym in dictSymmetries:
-        dictSym['startAxisX'] = dictSym['startAxis'][0]
-        dictSym['startAxisY'] = dictSym['startAxis'][1]
-        dictSym['endAxisX'] = dictSym['endAxis'][0]
-        dictSym['endAxisY'] = dictSym['endAxis'][1]
         dictSym['centerX'] = dictSym['center'][0]
         dictSym['centerY'] = dictSym['center'][1]
 

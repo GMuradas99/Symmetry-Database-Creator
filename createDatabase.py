@@ -32,9 +32,6 @@ prevData = pd.read_csv(os.path.join(FOLDER_PATH,'labels.csv'),index_col='index')
 # Checking starting point for loop
 start = len(prevData)
 
-# Checking starting point for loop
-start = len(prevData)
-
 # Loop
 for i in tqdm(range(start,len(MNIST))):
     # File name
