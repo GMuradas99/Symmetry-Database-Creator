@@ -516,6 +516,7 @@ def createSymmetry(id, mnist, initialRotation = None, overFlow = None, padding =
 
     return result, {'startAxis':startAxis, 'endAxis': endAxis, 'center':center, 'width':width, 'height':height, 'label':label, 'initialRotation':initialRotation, 'overFlow':overFlow, 'padding':padding, 'finalRotation':finalRotation, 'resizingPercent':resizingPercent}
 
+# Creates a cross symmetry
 def createCrossSymmetry(id, mnist, initialRotation = None, overFlow = None, padding1 = None, padding2 = None, finalRotation = None, 
                         resizingPercent = None):
     result,label = getImageArray(id,mnist)
