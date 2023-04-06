@@ -19,4 +19,4 @@ its labels with the following structure:
 
 The images are generated with random backgrounds generated using Random Noise (algorithms adapted from Lode Vandevenne's [tutorial](https://www.kaggle.com/datasets/oddrationale/mnist-in-csv?resource=download) 
 
-![97](https://user-images.githubusercontent.com/123949377/223097257-bf4ab52f-91db-46b6-bc54-28831ace2771.png)
+![26](https://user-images.githubusercontent.com/123949377/230326345-69da235b-89cc-427b-87e0-e133ad46b0b0.png)
