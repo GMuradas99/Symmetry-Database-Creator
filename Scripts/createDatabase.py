@@ -1,9 +1,12 @@
+import sys
+sys.path.append('../Symmetry-Database-Creator')
+
 import cv2
 import os.path
 import pandas as pd
 
 from tqdm import tqdm
-from functions import getLocalSymmetry
+from Utils.functions import getLocalSymmetry
 
 FOLDER_PATH = 'symmetry_database'
 COLUMNS = ['fileName','numSymmetries','numDecoys','symmetries','Darkness','xPeriod','yPeriod','turbSize','offsetX','offsetY','backgroundType']

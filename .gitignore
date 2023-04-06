@@ -1,2 +1,3 @@
+__pycache__/
 symmetry_database/
 MNIST/mnist_train.csv

@@ -1,4 +1,5 @@
 ### IMPORTS ###
+
 import cv2
 import ast
 import math
@@ -451,6 +452,37 @@ def getMask(row, path, thickness = 2):
             cv2.line(mask, (int(startAxis[0]),int(startAxis[1])), (int(endAxis[0]),int(endAxis[1])), 255, thickness)
     return mask
 
+# Returns a gradient line
+def get_gradient_line(start, stop, width, height, is_horizontal):
+    if is_horizontal:
+        return np.tile(np.linspace(start, stop, width), (height, 1))
+    else:
+        return np.tile(np.linspace(start, stop, height), (width, 1)).T
+
+# Returns a gradient of the specified size
+def get_gradient(width, height, start_list = None, stop_list = None, is_horizontal_list = None):
+    if start_list is None:
+        start_list = (random.randrange(255), random.randrange(255), random.randrange(255))
+    if stop_list is None:
+        stop_list = (random.randrange(255), random.randrange(255), random.randrange(255))
+    if is_horizontal_list is None:
+        is_horizontal_list = (random.getrandbits(1), random.getrandbits(1), random.getrandbits(1))
+    result = np.zeros((height, width, len(start_list)), dtype=np.uint8)
+
+    for i, (start, stop, is_horizontal) in enumerate(zip(start_list, stop_list, is_horizontal_list)):
+        result[:, :, i] = get_gradient_line(start, stop, width, height, is_horizontal)
+
+    return result
+
+# Applies random color gradient to given image
+def applyColorGradient(image, start=None, end=None, axes=None):
+    grad = get_gradient(image.shape[1],image.shape[0], start_list=start, stop_list=end, is_horizontal_list=axes)
+    norm = grad/255
+    image = np.multiply(image,norm)
+    image = image.astype(np.uint8)
+
+    return image
+
 ### MAIN FUNCTIONS ###
 
 # Creates a symmetry with the selected weight bias
@@ -470,9 +502,10 @@ def createAnySymmetry(id, mnist, types , weights, initialRotation = None, overFl
     return symmetry, symDictionary
 
 # Creates a random symmetry, returns array with image, its symmetry axis and its label; parameters can be modified.
-def createSymmetry(id, mnist, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
+def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
     # Getting the image and label
-    result,label = getImageArray(id,mnist)
+    result,label = getImageArray(id,minst)
+    result = applyColorGradient(result)
     
     # Initial rotation
     if initialRotation is None:
@@ -516,10 +549,11 @@ def createSymmetry(id, mnist, initialRotation = None, overFlow = None, padding =
 
     return result, {'startAxis':startAxis, 'endAxis': endAxis, 'center':center, 'width':width, 'height':height, 'label':label, 'initialRotation':initialRotation, 'overFlow':overFlow, 'padding':padding, 'finalRotation':finalRotation, 'resizingPercent':resizingPercent}
 
-# Creates a cross symmetry
-def createCrossSymmetry(id, mnist, initialRotation = None, overFlow = None, padding1 = None, padding2 = None, finalRotation = None, 
+# Creates cross symmetry
+def createCrossSymmetry(id,minst,initialRotation = None, overFlow = None, padding1 = None, padding2 = None, finalRotation = None, 
                         resizingPercent = None):
-    result,label = getImageArray(id,mnist)
+    result,label = getImageArray(id,minst)
+    result = applyColorGradient(result)
 
     # Initial rotation
     if initialRotation is None:
@@ -639,14 +673,16 @@ def getSmoothNoiseWood(shape, offsetX = None, offsetY = None, darkness = None, x
     return img, {'Darkness':darkness, 'xPeriod':xPeriod, 'yPeriod':yPeriod, 'turbPower':turbPower, 'turbSize':turbSize, 'offsetX':offsetX, 'offsetY':offsetY}
 
 # Creates a random symmetry, returns array with image, its symmetry axis and its label; parameters can be modified.
-def createAsymmetry(mnist, id1 = None, id2 = None,initialRotation2 = None ,initialRotation1 = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
+def createAsymmetry(minst, id1 = None, id2 = None,initialRotation2 = None ,initialRotation1 = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
     # Getting the image and label
     if id1 is None:
-        id1 = random.randrange(len(mnist))
+        id1 = random.randrange(len(minst))
     if id2 is None:
-        id2 = random.randrange(len(mnist))
-    result, _ = getImageArray(id1,mnist)
-    otherNumber, _ = getImageArray(id2,mnist)
+        id2 = random.randrange(len(minst))
+    result, _ = getImageArray(id1,minst)
+    result = applyColorGradient(result)
+    otherNumber, _ = getImageArray(id2,minst)
+    otherNumber = applyColorGradient(otherNumber)
     
     # Initial rotation
     if initialRotation1 is None:
@@ -684,7 +720,8 @@ def createAsymmetry(mnist, id1 = None, id2 = None,initialRotation2 = None ,initi
 # Returns an image with a local symmetry its dictionary and the backgrounds dictionary
 def getLocalSymmetry(shape, mnist, numOfSymmetries = None, types = ['simple', 'cross'], weights = [0.5, 0.5], idx = None, initialRotation = None, overFlow = None, padding1 = None,
                      padding2 = None, finalRotation = None, resizingPercent = None, backgroundType = None, darknessBackground = None, xPeriod = None, yPeriod = None, turbPower = None, 
-                     turbSize = None, offsetX = None, offsetY = None):
+                     turbSize = None, offsetX = None, offsetY = None, inverse = None):
+
     # Digits 
     if idx is None:
         idx = random.randrange(len(mnist))
@@ -707,13 +744,21 @@ def getLocalSymmetry(shape, mnist, numOfSymmetries = None, types = ['simple', 'c
         dictBack['offsetY'] = 0
     else:
         background, dictBack = getSmoothNoiseWood(shape, offsetX, offsetY, darknessBackground, xPeriod, yPeriod, turbPower, turbSize)
+    background = applyColorGradient(background)
 
     # Adding digits and background
     img = addNoOverflow(digits, background)
 
+    # Inverse image
+    if inverse is None:
+        inverse = random.getrandbits(1)
+    if inverse:
+        img = (255-img)
+
     # Modifying dictionaries        
     dictBack['backgroundType'] = backgroundType
     dictBack['numDecoys'] = numDecoys
+    dictBack['inverse'] = inverse
     for dictSym in dictSymmetries:
         dictSym['centerX'] = dictSym['center'][0]
         dictSym['centerY'] = dictSym['center'][1]
