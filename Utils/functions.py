@@ -194,11 +194,18 @@ def addRotationPadding(img):
 
     return padded_image
 
-# Returns a list with all the transformmed keypoints
+# Returns a list with all the transformed keypoints
 def transformKeypoints(keypoints, rotationMatrix):
     result = []
     for keypoint in keypoints:
-        rotatedPoint = rotationMatrix.dot(np.array(keypoint + (1,)))
+        if type(keypoint) == tuple:
+            rotatedPoint = rotationMatrix.dot(np.array(keypoint + (1,)))
+        elif type(keypoint) == list:
+            rotatedPoint = rotationMatrix.dot(np.array(keypoint + [1,]))
+        elif type(keypoint) == np.ndarray:
+            rotatedPoint = rotationMatrix.dot(np.append(keypoint, [1.]))
+        else: 
+            assert('Not supported data type')
         result.append((rotatedPoint[0],rotatedPoint[1]))
         
     return result
