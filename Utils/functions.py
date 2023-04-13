@@ -12,11 +12,19 @@ from os.path import join
 ### GETTERS ###
 
 #Returns numpy array of the digit and its label
-def getImageArray(id, minst):
-    image = minst.iloc[id][1:].values.flatten().tolist()
+def getImageArray(id, mnist):
+    image = mnist.iloc[id][1:].values.flatten().tolist()
     array = np.reshape(image, (int(len(image)**0.5),int(len(image)**0.5)))
 
-    return cv2.merge((array,array,array)).astype(np.uint8), minst.iloc[id]['label']
+    return cv2.merge((array,array,array)).astype(np.uint8), mnist.iloc[id]['label']
+
+# Returns random image of the desired number
+def getRandomMNISTDigit(mnist, label):
+    labeled = mnist.loc[mnist['label'] == label]
+    image = labeled.sample().values.flatten().tolist()[1:]
+    array = np.reshape(image, (int(len(image)**0.5),int(len(image)**0.5)))
+
+    return cv2.merge((array,array,array)).astype(np.uint8)
 
 # Returns the starting and ending points for the symmetry axis as well as the center, width and height for the bounding box
 def getSAandBB(img):
@@ -80,6 +88,28 @@ def getCrossSAandBB(img):
     width = (maxX-minX)
     
     return [[startAxis1, endAxis1],[startAxis2, endAxis2]],center,width,height
+
+# Returns a one dimensional gradient
+def get_gradient_line(start, stop, width, height, is_horizontal):
+    if is_horizontal:
+        return np.tile(np.linspace(start, stop, width), (height, 1))
+    else:
+        return np.tile(np.linspace(start, stop, height), (width, 1)).T
+
+# Returns a two dimensional gradient
+def get_gradient(width, height, start_list = None, stop_list = None, is_horizontal_list = None):
+    if start_list is None:
+        start_list = (random.randrange(255), random.randrange(255), random.randrange(255))
+    if stop_list is None:
+        stop_list = (random.randrange(255), random.randrange(255), random.randrange(255))
+    if is_horizontal_list is None:
+        is_horizontal_list = (random.getrandbits(1), random.getrandbits(1), random.getrandbits(1))
+    result = np.zeros((height, width, len(start_list)), dtype=np.uint8)
+
+    for i, (start, stop, is_horizontal) in enumerate(zip(start_list, stop_list, is_horizontal_list)):
+        result[:, :, i] = get_gradient_line(start, stop, width, height, is_horizontal)
+
+    return result
 
 ### DISPLAY FUNCTIONS
 
@@ -459,13 +489,6 @@ def getMask(row, path, thickness = 2):
             cv2.line(mask, (int(startAxis[0]),int(startAxis[1])), (int(endAxis[0]),int(endAxis[1])), 255, thickness)
     return mask
 
-# Returns a gradient line
-def get_gradient_line(start, stop, width, height, is_horizontal):
-    if is_horizontal:
-        return np.tile(np.linspace(start, stop, width), (height, 1))
-    else:
-        return np.tile(np.linspace(start, stop, height), (width, 1)).T
-
 # Returns a gradient of the specified size
 def get_gradient(width, height, start_list = None, stop_list = None, is_horizontal_list = None):
     if start_list is None:
@@ -490,29 +513,80 @@ def applyColorGradient(image, start=None, end=None, axes=None):
 
     return image
 
+# Applies a repliclable random color gradient to given image, input the return tuple to replicate the gradient in another object
+def applyReplicableColorGradient(image, replicate = None):
+    if replicate is None:
+        replicate = {
+            'start' : (random.randrange(255), random.randrange(255), random.randrange(255)),
+            'end'   : (random.randrange(255), random.randrange(255), random.randrange(255)),
+            'axes'  : (random.getrandbits(1), random.getrandbits(1), random.getrandbits(1))
+        }
+    image = applyColorGradient(image, start=replicate['start'], end=replicate['end'], axes=replicate['axes'])
+
+    return image, replicate
+
+# Adds insert into image so both coordinates coincide
+def insertPointOnPoint(ins, pointInsert, image, pointImage):
+    insertCoord = (pointImage[0]-pointInsert[0], pointImage[1]-pointInsert[1])
+    insert(ins, image, insertCoord)
+
+# Performs set step in rotation
+def performRotationStep(img, rotAxis, order, step):
+    rotationStep = 360.0 / order
+    rotationMatrix = cv2.getRotationMatrix2D(rotAxis, rotationStep * step, 1)
+    return cv2.warpAffine(img, rotationMatrix, img.shape[:2])
+
+# Adds all images in list on top of each other
+def addAllImages(listImages, overflow = True):
+    result = listImages[0].copy()
+    for img in listImages[1:]:
+        if overflow:
+            result = np.add(result, img)
+        else:
+            result = addNoOverflow(result,img)
+    return result
+
+# Returns minimum height and width of a group of images
+def getMinMaxHeightAndWidth(images: list) -> tuple:
+    minY = images[0].shape[0]
+    minX = images[0].shape[1]
+    maxY = 0
+    maxX = 0
+    for image in images:
+        if minY > image.shape[0]:
+            minY = image.shape[0]
+        if minX > image.shape[1]:
+            minX = image.shape[1]
+        if maxY < image.shape[0]:
+            maxY = image.shape[0]
+        if maxX < image.shape[1]:
+            maxX = image.shape[1]
+    return (minY, minX), (maxY, maxY)
+
 ### MAIN FUNCTIONS ###
 
 # Creates a symmetry with the selected weight bias
 def createAnySymmetry(id, mnist, types , weights, initialRotation = None, overFlow = None, padding1 = None, padding2 = None, 
-                      finalRotation = None, resizingPercent = None):
+                      finalRotation = None, resizingPercent = None, color = True):
     choice = random.choices(types, weights=weights, k=1)[0]
 
     if choice == 'simple':
-        symmetry,symDictionary = createSymmetry(id,mnist,initialRotation,overFlow,padding1,finalRotation,resizingPercent)
+        symmetry,symDictionary = createSymmetry(id,mnist,initialRotation,overFlow,padding1,finalRotation,resizingPercent,color)
         symAxes = [[[symDictionary['startAxis'][0], symDictionary['startAxis'][1]] , [symDictionary['endAxis'][0], symDictionary['endAxis'][1]]]]
         del symDictionary['startAxis']
         del symDictionary['endAxis']
         symDictionary['symAxes'] = symAxes
     if choice == 'cross':
-        symmetry, symDictionary = createCrossSymmetry(id, mnist, initialRotation, overFlow, padding1, padding2, finalRotation, resizingPercent)
+        symmetry, symDictionary = createCrossSymmetry(id, mnist, initialRotation, overFlow, padding1, padding2, finalRotation, resizingPercent, color)
 
     return symmetry, symDictionary
 
 # Creates a random symmetry, returns array with image, its symmetry axis and its label; parameters can be modified.
-def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None):
+def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding = None, finalRotation = None, resizingPercent = None, color = True):
     # Getting the image and label
     result,label = getImageArray(id,minst)
-    result = applyColorGradient(result)
+    if color:
+        result = applyColorGradient(result)
     
     # Initial rotation
     if initialRotation is None:
@@ -558,9 +632,10 @@ def createSymmetry(id, minst, initialRotation = None, overFlow = None, padding =
 
 # Creates cross symmetry
 def createCrossSymmetry(id,minst,initialRotation = None, overFlow = None, padding1 = None, padding2 = None, finalRotation = None, 
-                        resizingPercent = None):
+                        resizingPercent = None, color = True):
     result,label = getImageArray(id,minst)
-    result = applyColorGradient(result)
+    if color:
+        result = applyColorGradient(result)
 
     # Initial rotation
     if initialRotation is None:
@@ -771,3 +846,85 @@ def getLocalSymmetry(shape, mnist, numOfSymmetries = None, types = ['simple', 'c
         dictSym['centerY'] = dictSym['center'][1]
 
     return img, dictSymmetries, dictBack
+
+# Creates a rotational symmetry of the desired order
+def createRotationalSymmetry(id, mnist, rotAxis = None, order = None, resizingPercent = None, color = True):
+    result,label = getImageArray(id,mnist)
+    if color:
+        result = applyColorGradient(result)
+
+    # Selecting rotation axis
+    if rotAxis is None:
+        rotAxis = (random.randint(0,result.shape[0]-1),random.randint(0,result.shape[1]-1))
+
+    # Inserting image in bigger canvass
+    diagonal = int((result.shape[0]**2 + result.shape[1]**2)**0.5)
+    canvass = np.zeros((diagonal*2, diagonal*2, 3)).astype(np.uint8)
+    insertPointOnPoint(result, rotAxis, canvass, (diagonal, diagonal))
+
+    # Selecting order
+    if order is None:
+        order = random.randint(3,10)
+
+    # Performing rotation
+    rotatedStep = []
+    for i in range(order):
+        rotatedStep.append(performRotationStep(canvass, (diagonal, diagonal), order, i))
+    result = addAllImages(rotatedStep)
+
+    # Remove padding
+    result, _, _, newAxis = removePadding(result, [0,0], [0,0], (diagonal, diagonal))
+    newAxis = (newAxis[1],newAxis[0])
+
+    # Resize
+    if resizingPercent is None:
+        resizingPercent = random.randrange(80,300)
+    result, _, resizedAxis, _, _ = resizeSymmetryMultipleAxes(250, result, [], newAxis, 0, 0)
+
+    dict = {
+        'rotationAxis': resizedAxis,
+        'initialRotationAxis': rotAxis,
+        'order': order,
+        'resizingPercent': resizingPercent,
+        'label': label
+    }
+
+    return result, dict
+
+# Returns random rotational asymmetry
+def getRandomRotationalAssymetry(mnist, sameDigit = True, digit = None, sameColor = True, order = None):
+    # Generating all digits
+    if order is None:
+        order = random.randint(3,10)
+    if digit is None:
+        digit = random.randint(0,9)
+    images = []
+    colorToken = None
+    for _ in range(order):
+        if sameDigit:
+            im = getRandomMNISTDigit(mnist, digit)
+        else:
+            im,_ = getImageArray(random.randint(0,1000), mnist)
+        # Applying color
+        if sameColor:
+            im, colorToken = applyReplicableColorGradient(im, colorToken)
+        else:
+            im = applyColorGradient(im)
+        images.append(im)
+    
+    # Obtaining min and max dimensions
+    minXY, maxXY = getMinMaxHeightAndWidth(images)
+
+    # Random rotation axis
+    rotationAxis = (random.randint(0,minXY[0]-1),random.randint(0,minXY[1]-1))
+
+    # Rotating them
+    diagonal = int((maxXY[0]**2 + maxXY[1]**2)**0.5)
+    rotatedStep = []
+    for i in range(order):
+        canvass = np.zeros((diagonal*2, diagonal*2, 3)).astype(np.uint8)
+        insertPointOnPoint(images[i], rotationAxis, canvass, (diagonal, diagonal))
+        rotatedStep.append(performRotationStep(canvass, (diagonal, diagonal), order, i))
+
+    # Union
+    return addAllImages(rotatedStep)
