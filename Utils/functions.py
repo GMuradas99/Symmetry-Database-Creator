@@ -111,30 +111,42 @@ def get_gradient(width, height, start_list = None, stop_list = None, is_horizont
 
     return result
 
-### DISPLAY FUNCTIONS
-
-# Draws rectangle on the image
-def displayBoundingBox(img, points):
-    cv2.line(img, (int(points[0][0]),int(points[0][1])), (int(points[1][0]),int(points[1][1])), [0,255,0], 1)
-    cv2.line(img, (int(points[1][0]),int(points[1][1])), (int(points[2][0]),int(points[2][1])), [0,255,0], 1)
-    cv2.line(img, (int(points[2][0]),int(points[2][1])), (int(points[3][0]),int(points[3][1])), [0,255,0], 1)
-    cv2.line(img, (int(points[3][0]),int(points[3][1])), (int(points[0][0]),int(points[0][1])), [0,255,0], 1)
-
-# Draws symmetry axis and bounding box
-def drawSAandBB(img, startAxis, endAxis, center, width, height, rotation):
-    # Symmetry axis
-    cv2.line(img, (int(startAxis[0]) , int(startAxis[1])), (int(endAxis[0]) , int(endAxis[1])), [255,0,0], 1)
-
+# Returns bounding box points given parameters
+def getBoundingBoxPoints(center: list, width: int, height: int, rotation: float):
     # Points for bounding box
     pts = [(center[0]-width/2 , center[1]-height/2), (center[0]+width/2 , center[1]-height/2), 
            (center[0]+width/2 , center[1]+height/2), (center[0]-width/2 , center[1]+height/2)]
     
     # Rotating
     rotationMatrix = cv2.getRotationMatrix2D(center, rotation, 1)
-    pts = transformKeypoints(pts, rotationMatrix)
+    return transformKeypoints(pts, rotationMatrix)
+
+### DISPLAY FUNCTIONS
+
+# Draws all lines in list on specified color
+def drawLines(img: np.ndarray, lines: list, color: list[int] = [255,0, 0]):
+    for [startAxis, endAxis] in lines:
+        cv2.line(img, (int(startAxis[0]) , int(startAxis[1])), (int(endAxis[0]) , int(endAxis[1])), color, 1)
+    return img
+
+# Draws polygon on the image
+def drawPolygon(img: np.ndarray, points: list, color: list[int] = [0, 255, 0]):
+    for i in range(len(points)):
+        if i != len(points)-1:
+            cv2.line(img, (int(points[i][0]),int(points[i][1])), (int(points[i+1][0]),int(points[i+1][1])), color, 1)
+        else:    
+            cv2.line(img, (int(points[i][0]),int(points[i][1])), (int(points[0][0]),int(points[0][1])), color, 1)
+
+# Draws symmetry axis and bounding box
+def drawSAandBB(img, startAxis, endAxis, center, width, height, rotation):
+    # Symmetry axis
+    drawLines(img, [[startAxis, endAxis]])
+
+    # Getting points
+    pts = getBoundingBoxPoints(center, width, height, rotation)
 
     # Drawing bounding box
-    displayBoundingBox(img, pts)
+    drawPolygon(img, pts)
 
 # Displays all bounding boxes and symmetry axises
 def drawAllSAandBB(img, symDictionaries):
@@ -144,20 +156,14 @@ def drawAllSAandBB(img, symDictionaries):
 
 # Draws multiple symmetry axis and bounding box
 def drawMultipleSAandBB(img, axes, center, width, height, rotation):
-    for [startAxis, endAxis] in axes:
-        # Symmetry axis
-        cv2.line(img, (int(startAxis[0]) , int(startAxis[1])), (int(endAxis[0]) , int(endAxis[1])), [255,0,0], 1)
+    # Symmetry axis
+    drawLines(img, axes)
 
-        # Points for bounding box
-        pts = [(center[0]-width/2 , center[1]-height/2), (center[0]+width/2 , center[1]-height/2), 
-            (center[0]+width/2 , center[1]+height/2), (center[0]-width/2 , center[1]+height/2)]
-        
-        # Rotating
-        rotationMatrix = cv2.getRotationMatrix2D(center, rotation, 1)
-        pts = transformKeypoints(pts, rotationMatrix)
+    # Getting points
+    pts = getBoundingBoxPoints(center, width, height, rotation)
 
-        # Drawing bounding box
-        displayBoundingBox(img, pts)
+    # Drawing bounding box
+    drawPolygon(img, pts)
 
 ### OPERATIONS ###
 
