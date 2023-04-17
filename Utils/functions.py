@@ -121,6 +121,11 @@ def getBoundingBoxPoints(center: list, width: int, height: int, rotation: float)
     rotationMatrix = cv2.getRotationMatrix2D(center, rotation, 1)
     return transformKeypoints(pts, rotationMatrix)
 
+# Draws bounding box and symmetry axis from dictionary
+def drawFromDict(src: np.ndarray, dict: dict):
+    drawPolygon(src, getBoundingBoxPoints(dict['center'], dict['width'], dict['height'], dict['finalRotation']))
+    drawLines(src, dict['symAxes'])
+
 ### DISPLAY FUNCTIONS
 
 # Draws all lines in list on specified color
@@ -568,6 +573,90 @@ def getMinMaxHeightAndWidth(images: list) -> tuple:
         if maxX < image.shape[1]:
             maxX = image.shape[1]
     return (minY, minX), (maxY, maxY)
+
+# Skews image to desired specifications, retunrs skew token for display
+def skewImage(src: np.ndarray, width: int, height: int, center, rotation: float, skewPercX: int, skewPercY: int, axis: str= 'Vertical') -> np.ndarray:
+    # Gathering input box
+    input_pts = getBoundingBoxPoints(center, width, height, 0)
+
+    # Skewing box
+    if axis == 'Vertical':
+        output_pts = np.float32([
+            [(input_pts[0][0] + (width/2)*skewPercX), (input_pts[0][1] + (height/2)*skewPercY)],
+            input_pts[1],
+            [(input_pts[2][0] - (width/2)*skewPercX), (input_pts[2][1] - (height/2)*skewPercY)],
+            input_pts[3]
+        ])
+    else:
+        output_pts = np.float32([
+            input_pts[0],
+            [(input_pts[1][0] + (width/2)*skewPercX), (input_pts[1][1] + (height/2)*skewPercY)],
+            input_pts[2],
+            [(input_pts[3][0] + (width/2)*skewPercX), (input_pts[3][1] + (height/2)*skewPercY)],
+        ])
+    
+    # Rotating box
+    rotationMatrix = cv2.getRotationMatrix2D(center, rotation, 1)
+    rotated_input =  np.float32(transformKeypoints(input_pts, rotationMatrix))
+    output_pts =  np.float32(transformKeypoints(output_pts, rotationMatrix))
+
+    # Applying transform
+    M = cv2.getPerspectiveTransform(rotated_input, output_pts)
+    out = cv2.warpPerspective(src=src,M=M,dsize=(src.shape[1], src.shape[0]),flags=cv2.INTER_LINEAR)
+
+    # Skew Token
+    skewToken = {
+        'axis': axis,
+        'skewPercX': skewPercX,
+        'skewPercY': skewPercY,
+    }
+
+    return out, skewToken
+
+# Takes a list of segments and returns a list of points
+def fromSegmentsToPoints(segments: list):
+    points = []
+    for symAxis in segments:
+        points.append(symAxis[0])
+        points.append(symAxis[1])
+    return points
+
+# Takes a list of points and returns a list of segments
+def fromPointsTosegments(points: list):
+    segments = []
+    for i in range(len(points)//2):
+        segments.append([points[i*2],points[i*2+1]])
+    return segments
+
+# Skews the point to the specified token
+def skewPoints(pts: list, width: int, height: int, center, rotation: float, skewToken: dict):
+    input_pts = getBoundingBoxPoints(center, width, height, 0)
+
+    # Skewing box
+    if skewToken['axis'] == 'Vertical':
+        output_pts = np.float32([
+            [(input_pts[0][0] + (width/2)*skewToken['skewPercX']), (input_pts[0][1] + (height/2)*skewToken['skewPercY'])],
+            input_pts[1],
+            [(input_pts[2][0] - (width/2)*skewToken['skewPercX']), (input_pts[2][1] - (height/2)*skewToken['skewPercY'])],
+            input_pts[3]
+        ])
+    else:
+        output_pts = np.float32([
+            input_pts[0],
+            [(input_pts[1][0] + (width/2)*skewToken['skewPercX']), (input_pts[1][1] + (height/2)*skewToken['skewPercY'])],
+            input_pts[2],
+            [(input_pts[3][0] + (width/2)*skewToken['skewPercX']), (input_pts[3][1] + (height/2)*skewToken['skewPercY'])],
+        ])
+    
+    # Rotating box
+    rotationMatrix = cv2.getRotationMatrix2D(center, rotation, 1)
+    rotated_input =  np.float32(transformKeypoints(input_pts, rotationMatrix))
+    output_pts =  np.float32(transformKeypoints(output_pts, rotationMatrix))
+
+    # Creating transform Matrix
+    M = cv2.getPerspectiveTransform(rotated_input, output_pts)
+
+    return transformKeypoints(pts, M)
 
 ### MAIN FUNCTIONS ###
 
