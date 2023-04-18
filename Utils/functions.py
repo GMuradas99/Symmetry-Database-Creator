@@ -500,21 +500,6 @@ def getMask(row, path, thickness = 2):
             cv2.line(mask, (int(startAxis[0]),int(startAxis[1])), (int(endAxis[0]),int(endAxis[1])), 255, thickness)
     return mask
 
-# Returns a gradient of the specified size
-def get_gradient(width, height, start_list = None, stop_list = None, is_horizontal_list = None):
-    if start_list is None:
-        start_list = (random.randrange(255), random.randrange(255), random.randrange(255))
-    if stop_list is None:
-        stop_list = (random.randrange(255), random.randrange(255), random.randrange(255))
-    if is_horizontal_list is None:
-        is_horizontal_list = (random.getrandbits(1), random.getrandbits(1), random.getrandbits(1))
-    result = np.zeros((height, width, len(start_list)), dtype=np.uint8)
-
-    for i, (start, stop, is_horizontal) in enumerate(zip(start_list, stop_list, is_horizontal_list)):
-        result[:, :, i] = get_gradient_line(start, stop, width, height, is_horizontal)
-
-    return result
-
 # Applies random color gradient to given image
 def applyColorGradient(image, start=None, end=None, axes=None):
     grad = get_gradient(image.shape[1],image.shape[0], start_list=start, stop_list=end, is_horizontal_list=axes)
